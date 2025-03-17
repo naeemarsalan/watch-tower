@@ -1,8 +1,3 @@
-Here's a **`README.md`** for your project, documenting how to set up, run, and understand the **watch-tower** Kubernetes controller. 🚀
-
----
-
-### 📄 **README.md**
 ```markdown
 # 🏰 Watch-Tower
 
