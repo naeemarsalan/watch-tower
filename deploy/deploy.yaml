@@ -10,7 +10,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: watch-tower-role
-  namespace: default
 rules:
   - apiGroups: ["automationcontroller.ansible.com"]
     resources: ["automationcontrollers"]

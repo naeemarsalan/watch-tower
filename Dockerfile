@@ -24,10 +24,10 @@ WORKDIR /root/
 RUN apk add --no-cache ca-certificates
 
 # Copy the compiled binary from builder stage
-COPY --from=builder /app/watch-tower .
+COPY --from=builder /app/watch-tower /usr/local/bin/watch-tower
 
-# Set executable permissions
-RUN chmod +x watch-tower
+# Ensure the binary has executable permissions
+RUN chmod +x /usr/local/bin/watch-tower
 
 # Run as a non-root user for security
 RUN addgroup -S watchtower && adduser -S watchtower -G watchtower
@@ -38,5 +38,5 @@ ENV DB_CREDENTIAL_PATH="/srv/db_credential"
 ENV AAP_NAMESPACE="default"
 
 # Entrypoint for the controller
-ENTRYPOINT ["./watch-tower"]
+ENTRYPOINT ["/usr/local/bin/watch-tower"]
 
