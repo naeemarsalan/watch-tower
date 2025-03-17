@@ -3,6 +3,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: watch-tower-sa
+  namespace: aap-24  # ✅ Ensure it's in the correct namespace
 
 ---
 # 📌 2️⃣ RBAC Role (Allows Watch-Tower to Get/List/Patch AutomationController CRD)
@@ -10,10 +11,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: watch-tower-role
+  namespace: aap-24  # ✅ Ensure it's in the correct namespace
 rules:
-  - apiGroups: ["automationcontroller.ansible.com"]
+  - apiGroups: ["automationcontroller.ansible.com"]  # ✅ Correct API Group
     resources: ["automationcontrollers"]
-    verbs: ["get", "list", "patch"]
+    verbs: ["get", "list", "watch", "patch"]
+
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get"]
@@ -24,10 +27,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: watch-tower-rolebinding
+  namespace: aap-24  # ✅ Ensure it's in the correct namespace
 subjects:
   - kind: ServiceAccount
     name: watch-tower-sa
-    namespace: default
+    namespace: aap-24  # ✅ Ensure it matches the ServiceAccount namespace
 roleRef:
   kind: Role
   name: watch-tower-role
@@ -51,11 +55,22 @@ spec:
       labels:
         app: watch-tower
     spec:
+      securityContext:
+        runAsNonRoot: true  # ✅ Ensures it does not run as root
+        runAsUser: 1001  # ✅ OpenShift assigns an arbitrary UID (fixes SCC issues)
       serviceAccountName: watch-tower-sa  # ✅ Uses ServiceAccount for API access
       containers:
         - name: watch-tower
-          image: docker.io/naeemarsalan/watch-tower:latest
+          image: docker.io/naeemarsalan/watch-tower:v0.0.1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false  # ✅ Prevents privilege escalation
+            readOnlyRootFilesystem: true  # ✅ Forces a read-only filesystem
+            capabilities:
+              drop:
+                - "ALL"  # ✅ Required by OpenShift for restricted mode
+            seccompProfile:
+              type: RuntimeDefault  # ✅ Required for restricted mode
           env:
             - name: DB_CREDENTIAL_PATH
               value: "/srv/db_credential/credentials.py"  # ✅ Path where the secret is mounted
