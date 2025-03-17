@@ -58,7 +58,7 @@ spec:
       serviceAccountName: watch-tower-sa  # ✅ Uses ServiceAccount for API access
       containers:
         - name: watch-tower
-          image: your-dockerhub-user/watch-tower:latest  # ✅ Replace with your actual image
+          image: docker.io/naeemarsalan/watch-tower:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: DB_CREDENTIAL_PATH
