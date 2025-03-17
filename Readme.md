@@ -1,4 +1,3 @@
-```markdown
 # 🏰 Watch-Tower
 
 ## 📌 Overview
