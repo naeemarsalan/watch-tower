@@ -1,0 +1,81 @@
+# 📌 1️⃣ Service Account for Watch-Tower
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watch-tower-sa
+  namespace: default
+
+---
+# 📌 2️⃣ RBAC Role (Allows Watch-Tower to Get/List/Patch AutomationController CRD)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: watch-tower-role
+  namespace: default
+rules:
+  - apiGroups: ["automationcontroller.ansible.com"]
+    resources: ["automationcontrollers"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+
+---
+# 📌 3️⃣ RoleBinding (Binds the Service Account to the Role)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: watch-tower-rolebinding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: watch-tower-sa
+    namespace: default
+roleRef:
+  kind: Role
+  name: watch-tower-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# 📌 4️⃣ Deployment for Watch-Tower
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watch-tower
+  namespace: default
+  labels:
+    app: watch-tower
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watch-tower
+  template:
+    metadata:
+      labels:
+        app: watch-tower
+    spec:
+      serviceAccountName: watch-tower-sa  # ✅ Uses ServiceAccount for API access
+      containers:
+        - name: watch-tower
+          image: your-dockerhub-user/watch-tower:latest  # ✅ Replace with your actual image
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DB_CREDENTIAL_PATH
+              value: "/srv/db_credential/credentials.py"  # ✅ Path where the secret is mounted
+            - name: AAP_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace  # ✅ Automatically uses the namespace
+          volumeMounts:
+            - name: db-credentials
+              mountPath: "/srv/db_credential"  # ✅ Mounts secret at this path
+              readOnly: true
+      volumes:
+        - name: db-credentials
+          secret:
+            secretName: controller-edb-01-app-credentials  # ✅ Secret name
+            items:
+              - key: credentials.py
+                path: credentials.py  # ✅ Mounts secret as credentials.py
+
