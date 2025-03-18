@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json" // ✅ Re-added for json.Marshal()
 	"fmt"
 	"net"
 	"strconv"
@@ -9,11 +10,11 @@ import (
 
 	"watch-tower/dbconfig"
 
+	"github.com/jackc/pgx/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/apimachinery/pkg/types" // ✅ Re-added for types.MergePatchType
 	"k8s.io/client-go/dynamic"
 )
 
@@ -28,6 +29,10 @@ func StartWatchLoop(dynamicClient dynamic.Interface, dbCredentials *dbconfig.Dat
 		Resource: "automationcontrollers",
 	}
 
+	// ✅ Create a persistent DB connection
+	var conn *pgx.Conn
+	var err error
+
 	for {
 		fmt.Println("\n🔄 Checking AutomationController and Database Role...")
 
@@ -37,23 +42,22 @@ func StartWatchLoop(dynamicClient dynamic.Interface, dbCredentials *dbconfig.Dat
 			fmt.Println("❌ Database port is unreachable! Scaling down AutomationController immediately...")
 			scaleDownAllControllers(dynamicClient, namespace, gvr)
 			fmt.Println("🔄 Retrying in 10 seconds...")
-			time.Sleep(10 * time.Second) // ⏳ Fast retry when DB is down
-			continue
-		}
-
-		// ✅ Step 2: Connect to PostgreSQL (3s Timeout)
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-
-		conn, err := dbconfig.ConnectToDB(dbCredentials)
-		if err != nil {
-			fmt.Println("❌ Database connection failed! Scaling down AutomationController...")
-			scaleDownAllControllers(dynamicClient, namespace, gvr)
-			fmt.Println("🔄 Retrying in 10 seconds...")
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		defer conn.Close(ctx)
+
+		// ✅ Step 2: Check if the connection is valid
+		if conn == nil || conn.Ping(context.Background()) != nil { // ✅ Ensure `Ping` works with pgx
+			fmt.Println("🔄 Reconnecting to PostgreSQL...")
+			conn, err = dbconfig.ConnectToDB(dbCredentials)
+			if err != nil {
+				fmt.Println("❌ Database connection failed! Scaling down AutomationController...")
+				scaleDownAllControllers(dynamicClient, namespace, gvr)
+				fmt.Println("🔄 Retrying in 10 seconds...")
+				time.Sleep(10 * time.Second)
+				continue
+			}
+		}
 
 		// ✅ Step 3: Check DB Role (Primary or Standby)
 		dbRole, err := dbconfig.CheckDBRole(conn)
@@ -139,8 +143,8 @@ func isPostgresReachable(address string) bool {
 	return true
 }
 
+// ✅ Get Current `spec.replicas` Value
 func getCurrentReplicas(controller *unstructured.Unstructured) (int, error) {
-	// Extract the "spec.replicas" field
 	replicasField, found, err := unstructured.NestedFieldCopy(controller.Object, "spec", "replicas")
 	if err != nil || !found {
 		return 0, fmt.Errorf("spec.replicas field not found")
